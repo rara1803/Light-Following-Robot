@@ -4,6 +4,8 @@
 This project was developed as part of my Embedded Systems course at university.
 The robot was designed with multiple embedded functionalities in mind such as light-following, light-avoidance, Bluetooth control, LED indicators, and automatic power-off. It provided the perfect opportunity to practise and work on my hardware building skills as well as my programming software skills. 
 
+![Light-Following Robot](results/final result robot.jpeg)  
+
 ## Features
 
 1. Light-Following Mode:  
