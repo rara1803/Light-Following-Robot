@@ -1,0 +1,166 @@
+// Pin Definitions
+int RMotor_1 = 2;
+int RMotor_2 = 3;
+int LMotor_1 = 4;
+int LMotor_2 = 5;
+int REnable = 10;
+int LEnable = 11;
+
+int LDR_Right = A0;
+int LDR_Left = A1;
+int modeButton = 9;
+
+int greenLED = 6;
+int redLED = 13;
+int buzzerPin = A2;
+
+bool avoidMode = false;
+bool buttonPreviouslyPressed = false;
+bool shutDownTriggered = false;
+bool noLightWarningActive = false;
+
+unsigned long noLightStartTime = 0;
+int lightThreshold = 600;
+
+// Movement Functions
+void move_forward() {
+  digitalWrite(RMotor_1, LOW);  digitalWrite(RMotor_2, HIGH);
+  digitalWrite(LMotor_1, HIGH); digitalWrite(LMotor_2, LOW);
+}
+
+void move_backward() {
+  digitalWrite(RMotor_1, HIGH); digitalWrite(RMotor_2, LOW);
+  digitalWrite(LMotor_1, LOW);  digitalWrite(LMotor_2, HIGH);
+}
+
+void turn_right() {
+  digitalWrite(RMotor_1, HIGH); digitalWrite(RMotor_2, LOW);
+  digitalWrite(LMotor_1, HIGH); digitalWrite(LMotor_2, LOW);
+}
+
+void turn_left() {
+  digitalWrite(RMotor_1, LOW);  digitalWrite(RMotor_2, HIGH);
+  digitalWrite(LMotor_1, LOW);  digitalWrite(LMotor_2, HIGH);
+}
+
+void move_stop() {
+  digitalWrite(RMotor_1, LOW); digitalWrite(RMotor_2, LOW);
+  digitalWrite(LMotor_1, LOW); digitalWrite(LMotor_2, LOW);
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(RMotor_1, OUTPUT); pinMode(RMotor_2, OUTPUT);
+  pinMode(LMotor_1, OUTPUT); pinMode(LMotor_2, OUTPUT);
+  pinMode(REnable, OUTPUT);  pinMode(LEnable, OUTPUT);
+  analogWrite(REnable, 210); analogWrite(LEnable, 210);
+
+  pinMode(modeButton, INPUT_PULLUP);
+  pinMode(greenLED, OUTPUT);
+  pinMode(redLED, OUTPUT);
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW);
+}
+
+void loop() {
+  if (shutDownTriggered) {
+    move_stop();
+    digitalWrite(greenLED, LOW);
+    digitalWrite(redLED, LOW);
+    return;
+  }
+
+  // Bluetooth Commands
+  if (Serial.available()) {
+    char command = Serial.read();
+    switch (command) {
+      case 'F': move_forward(); break;
+      case 'B': move_backward(); break;
+      case 'L': turn_left(); break;
+      case 'R': turn_right(); break;
+      case 'S': move_stop(); break;
+      case 'D': dance(); break;
+      default:  move_stop(); break;
+    }
+    delay(100);
+    return;
+  }
+
+  // Toggle Mode with Button
+  bool buttonPressed = digitalRead(modeButton) == LOW;
+  if (buttonPressed && !buttonPreviouslyPressed) {
+    avoidMode = !avoidMode;
+  }
+  buttonPreviouslyPressed = buttonPressed;
+
+  // LED Indicator
+  digitalWrite(greenLED, avoidMode ? LOW : HIGH);
+  digitalWrite(redLED, avoidMode ? HIGH : LOW);
+
+  // LDR Readings
+  int ldrright = analogRead(LDR_Right);
+  int ldrleft = analogRead(LDR_Left);
+
+  bool noLight = (ldrleft >= lightThreshold && ldrright >= lightThreshold);
+
+  if (noLight) {
+    if (!noLightWarningActive) {
+      noLightStartTime = millis();
+      noLightWarningActive = true;
+    } else if (!shutDownTriggered && millis() - noLightStartTime >= 40000) {
+      move_stop();
+      digitalWrite(buzzerPin, HIGH);
+      delay(2000);
+      digitalWrite(buzzerPin, LOW);
+      shutDownTriggered = true;
+    }
+  } else {
+    noLightWarningActive = false;
+    shutDownTriggered = false;
+    digitalWrite(buzzerPin, LOW);
+  }
+
+  // Follow or Avoid Light Mode
+  if (!avoidMode) {
+    if (ldrright < lightThreshold && ldrleft < lightThreshold) {
+      move_forward();
+    } else if (ldrright < lightThreshold && ldrleft >= lightThreshold) {
+      turn_right();
+    } else if (ldrright >= lightThreshold && ldrleft < lightThreshold) {
+      turn_left();
+    } else {
+      move_stop();
+    }
+  } else {
+    if (ldrright < lightThreshold && ldrleft < lightThreshold) {
+      move_backward();
+    } else if (ldrright < lightThreshold && ldrleft >= lightThreshold) {
+      turn_right();
+    } else if (ldrright >= lightThreshold && ldrleft < lightThreshold) {
+      turn_left();
+    } else {
+      move_stop();
+    }
+  }
+
+  delay(100);
+}
+
+void dance() {
+  for (int i = 0; i < 3; i++) {
+    move_forward();  flashLights(); delay(400);
+    move_backward(); flashLights(); delay(400);
+    turn_left();     flashLights(); delay(300);
+    turn_right();    flashLights(); delay(300);
+  }
+  move_stop();
+}
+void flashLights() {
+  digitalWrite(greenLED, HIGH);
+  digitalWrite(redLED, HIGH);
+  tone(buzzerPin, 1000, 100);
+  delay(100);
+  digitalWrite(greenLED, LOW);
+  digitalWrite(redLED, LOW);
+}
